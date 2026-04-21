@@ -61,46 +61,68 @@ function ChatApp() {
 
   /* ─── Process user input ──────────────────────────────────── */
   const handleUserInput = useCallback(
-    (value, label = null) => {
+    async (value, label = null) => {
       // Add user message
       addMessage('user', label || value)
       setCurrentOptions(null)
-
-      // Simulate typing delay
       setTyping(true)
 
-      const delay = 800 + Math.random() * 700
+      let result = null
 
-      setTimeout(() => {
-        setTyping(false)
-
-        const result = processInput(value, stage, userLevel)
-
-        // Handle level setting
-        if (result.level) {
-          setUserLevel(result.level)
-        }
-        if (result.nextStage) {
-          setStage(result.nextStage)
-        }
-
-        // Add bot message
-        addMessage('assistant', result.content, null, {
-          title: result.title || null,
+      try {
+        // Send request to LLM via API
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+             messages: [{ role: 'user', content: value }],
+             userLevel,
+             stage 
+          }),
         })
 
-        // Show timeline if requested
-        if (result.showTimeline) {
-          setShowTimeline(true)
+        if (!res.ok) throw new Error('API failed')
+        
+        const data = await res.json()
+        const parsed = JSON.parse(data.content)
+        
+        result = {
+          content: parsed.content,
+          options: parsed.options,
+          level: value === 'level_beginner' ? 'beginner' : value === 'level_intermediate' ? 'intermediate' : null,
+          nextStage: value.startsWith('level_') ? 'learning' : null
         }
+      } catch (error) {
+        console.warn('Groq LLM offline or parsing failed, falling back to static rules engine...')
+        result = processInput(value, stage, userLevel)
+      }
 
-        // Set new options
-        if (result.options) {
-          setTimeout(() => {
-            setCurrentOptions(result.options)
-          }, 200)
-        }
-      }, delay)
+      setTyping(false)
+
+      // Handle level setting
+      if (result.level) {
+        setUserLevel(result.level)
+      }
+      if (result.nextStage) {
+        setStage(result.nextStage)
+      }
+
+      // Add bot message
+      addMessage('assistant', result.content, null, {
+        title: result.title || null,
+      })
+
+      // Show timeline if requested
+      if (result.showTimeline) {
+        setShowTimeline(true)
+      }
+
+      // Set new options
+      if (result.options && result.options.length > 0) {
+        setTimeout(() => {
+          setCurrentOptions(result.options)
+        }, 200)
+      }
     },
     [addMessage, setTyping, stage, userLevel, setUserLevel, setStage]
   )
