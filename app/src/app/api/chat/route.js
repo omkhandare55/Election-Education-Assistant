@@ -68,7 +68,7 @@ Assistant: {"content": "An **Electronic Voting Machine (EVM)** consists of a Con
         ],
         response_format: { type: "json_object" },
         max_tokens: 500,
-        temperature: 0.5,
+        temperature: 0.1,
       }),
     })
 
